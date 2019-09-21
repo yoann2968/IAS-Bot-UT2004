@@ -26,6 +26,7 @@ import cz.cuni.amis.pogamut.ut2004.communication.messages.UT2004ItemType;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.Initialize;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.Move;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.Rotate;
+import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.SendMessage;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.Stop;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.StopShooting;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbinfomessages.BotDamaged;
@@ -97,6 +98,8 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
     public void playerKilled(PlayerKilled event) {
         if (event.getKiller().equals(info.getId())) {
             ++frags;
+            log.log(Level.INFO, "nombre de kill : {0}", frags);
+            act.act(new SendMessage().setGlobal(true).setText("nombre de kill : " + frags));
         }
         if (enemy == null) {
             return;
@@ -154,7 +157,7 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
             }
         });
 
-        // DEFINE WEAPON PREFERENCES
+        // FIRST we DEFINE GENERAL WEAPON PREFERENCES
         weaponPrefs.addGeneralPref(UT2004ItemType.LIGHTNING_GUN, true);                
         weaponPrefs.addGeneralPref(UT2004ItemType.SHOCK_RIFLE, true);
         weaponPrefs.addGeneralPref(UT2004ItemType.MINIGUN, false);
@@ -163,6 +166,25 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
         weaponPrefs.addGeneralPref(UT2004ItemType.LINK_GUN, true);
         weaponPrefs.addGeneralPref(UT2004ItemType.ASSAULT_RIFLE, true);        
         weaponPrefs.addGeneralPref(UT2004ItemType.BIO_RIFLE, true);
+
+		
+        // AND THEN RANGED
+        weaponPrefs.newPrefsRange(80)
+                .add(UT2004ItemType.SHIELD_GUN, true);
+
+        weaponPrefs.newPrefsRange(1000)
+                .add(UT2004ItemType.FLAK_CANNON, true)
+                .add(UT2004ItemType.MINIGUN, true)
+                .add(UT2004ItemType.LINK_GUN, false)
+                .add(UT2004ItemType.ASSAULT_RIFLE, true);        
+
+        weaponPrefs.newPrefsRange(4000)
+                .add(UT2004ItemType.SHOCK_RIFLE, true)
+                .add(UT2004ItemType.MINIGUN, false);
+
+        weaponPrefs.newPrefsRange(100000)
+                .add(UT2004ItemType.LIGHTNING_GUN, true)
+                .add(UT2004ItemType.SHOCK_RIFLE, true);
     }
 
     /**
@@ -185,16 +207,18 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
         enemy = null;
         navigation.stopNavigation();
         itemsToRunAround = null;
+        deaths++;
+        act.act(new SendMessage().setGlobal(true).setText("Je suis mort " + deaths + " fois"));
     }
     
     @EventListener(eventClass=PlayerDamaged.class)
     public void playerDamaged(PlayerDamaged event) {
-    	log.info("I have just hurt other bot for: " + event.getDamageType() + "[" + event.getDamage() + "]");
+    	log.log(Level.INFO, "I have just hurt other bot for: {0}[{1}]", new Object[]{event.getDamageType(), event.getDamage()});
     }
     
     @EventListener(eventClass=BotDamaged.class)
     public void botDamaged(BotDamaged event) {
-    	log.info("I have just been hurt by other bot for: " + event.getDamageType() + "[" + event.getDamage() + "]");
+    	log.log(Level.INFO, "I have just been hurt by other bot for: {0}[{1}]", new Object[]{event.getDamageType(), event.getDamage()});
     }
 
     /**
@@ -343,14 +367,14 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
     //////////////////
     protected void stateMedKit() {
         //log.info("Decision is: MEDKIT");
-        Item item = items.getPathNearestSpawnedItem(ItemType.Category.HEALTH);
-        if (item == null) {
+        Item itemActuel = items.getPathNearestSpawnedItem(ItemType.Category.HEALTH);
+        if (itemActuel == null) {
         	log.warning("NO HEALTH ITEM TO RUN TO => ITEMS");
         	stateRunAroundItems();
         } else {
         	bot.getBotName().setInfo("MEDKIT");
-        	navigation.navigate(item);
-        	this.item = item;
+        	navigation.navigate(itemActuel);
+        	this.item = itemActuel;
         }
     }
 
@@ -381,17 +405,17 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
         	interesting.addAll(items.getSpawnedItems(UT2004ItemType.HEALTH_PACK).values());
         }
         
-        Item item = MyCollections.getRandom(tabooItems.filter(interesting));
-        if (item == null) {
+        Item itemActuel = MyCollections.getRandom(tabooItems.filter(interesting));
+        if (itemActuel == null) {
         	log.warning("NO ITEM TO RUN FOR!");
         	if (navigation.isNavigating()) return;
         	bot.getBotName().setInfo("RANDOM NAV");
         	navigation.navigate(navPoints.getRandomNavPoint());
         } else {
-        	this.item = item;
-        	log.info("RUNNING FOR: " + item.getType().getName());
-        	bot.getBotName().setInfo("ITEM: " + item.getType().getName() + "");
-        	navigation.navigate(item);        	
+        	this.item = itemActuel;
+        	log.log(Level.INFO, "RUNNING FOR: {0}", itemActuel.getType().getName());
+        	bot.getBotName().setInfo("ITEM: " + itemActuel.getType().getName() + "");
+        	navigation.navigate(itemActuel);        	
         }        
     }
 
