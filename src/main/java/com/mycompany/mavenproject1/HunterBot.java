@@ -13,9 +13,13 @@ import cz.cuni.amis.pogamut.base.utils.Pogamut;
 import cz.cuni.amis.pogamut.base.utils.guice.AgentScoped;
 import cz.cuni.amis.pogamut.base.utils.math.DistanceUtils;
 import cz.cuni.amis.pogamut.base3d.worldview.object.ILocated;
+import cz.cuni.amis.pogamut.ut2004.agent.module.sensor.NavPoints;
 import cz.cuni.amis.pogamut.ut2004.agent.module.utils.TabooSet;
+import cz.cuni.amis.pogamut.ut2004.agent.navigation.IUT2004Navigation;
 import cz.cuni.amis.pogamut.ut2004.agent.navigation.NavigationState;
+import cz.cuni.amis.pogamut.ut2004.agent.navigation.UT2004Navigation;
 import cz.cuni.amis.pogamut.ut2004.agent.navigation.UT2004PathAutoFixer;
+import cz.cuni.amis.pogamut.ut2004.agent.navigation.UT2004PathExecutorStuckState;
 import cz.cuni.amis.pogamut.ut2004.agent.navigation.stuckdetector.UT2004DistanceStuckDetector;
 import cz.cuni.amis.pogamut.ut2004.agent.navigation.stuckdetector.UT2004PositionStuckDetector;
 import cz.cuni.amis.pogamut.ut2004.agent.navigation.stuckdetector.UT2004TimeStuckDetector;
@@ -51,6 +55,40 @@ import cz.cuni.amis.utils.flag.FlagListener;
 @AgentScoped
 public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
 
+    /**
+     * boolean switch if the current state is idle
+     */
+    @JProp
+    public boolean idleState = true;
+    /**
+     * boolean switch if the current state is attack
+     */
+    @JProp
+    public boolean attackState = false;
+    /**
+     * boolean switch if the current state is search
+     */
+    @JProp
+    public boolean searchState = false;
+    /**
+     * boolean switch if the current state is hurt
+     */
+    @JProp
+    public boolean hurtState = false;
+    
+    protected IUT2004Navigation navigationToUse;
+    
+    /**
+     * Taboo set is working as "black-list", that is you might add some
+     * NavPoints to it for a certain time, marking them as "unavailable".
+     */
+    protected TabooSet<NavPoint> tabooNavPoints;
+    
+    /**
+     * Current navigation point we're navigating to.
+     */
+    protected NavPoint targetNavPoint;
+    
     /**
      * boolean switch to activate engage behavior
      */
@@ -100,6 +138,8 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
             ++frags;
             log.log(Level.INFO, "nombre de kill : {0}", frags);
             act.act(new SendMessage().setGlobal(true).setText("nombre de kill : " + frags));
+            attackState=false;
+            idleState=true;
         }
         if (enemy == null) {
             return;
@@ -194,9 +234,82 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
      */
     @Override
     public Initialize getInitializeCommand() {
+         // initialize taboo set where we store temporarily unavailable navpoints
+        tabooNavPoints = new TabooSet<NavPoint>(bot);
+
+        // auto-removes wrong navigation links between navpoints
+        autoFixer = new UT2004PathAutoFixer(bot, navigation.getPathExecutor(), fwMap, aStar, navBuilder);
+
+        // IMPORTANT
+        // adds a listener to the path executor for its state changes, it will allow you to 
+        // react on stuff like "PATH TARGET REACHED" or "BOT STUCK"
+        navigation.getPathExecutor().getState().addStrongListener(new FlagListener<IPathExecutorState>() {
+
+            @Override
+            public void flagChanged(IPathExecutorState changedValue) {
+                pathExecutorStateChange(changedValue);
+            }
+        });
+        
+        nmNav.getPathExecutor().getState().addStrongListener(new FlagListener<IPathExecutorState>() {
+
+            @Override
+            public void flagChanged(IPathExecutorState changedValue) {
+                pathExecutorStateChange(changedValue);
+            }
+        });
+        
+//        navigationAStar = new UT2004Navigation(bot, navigation.getPathExecutor(), aStar, navigation.getBackToNavGraph(), navigation.getRunStraight());          
+//        navigationAStar.getLog().setLevel(navigationLogLevel);
+//        
+//        navigation.getLog().setLevel(navigationLogLevel);
+//        
+//        nmNav.setLogLevel(navigationLogLevel);
         // just set the name of the bot and his skill level, 1 is the lowest, 7 is the highest
     	// skill level affects how well will the bot aim
         return new Initialize().setName("Hunter-" + (++instanceCount)).setDesiredSkill(5);
+    }
+    
+    /**
+     * Path executor has changed its state 
+     *
+     * @param event
+     */
+    protected void pathExecutorStateChange(IPathExecutorState event) {
+        switch (event.getState()) {
+            case PATH_COMPUTATION_FAILED:
+                // if path computation fails to whatever reason, just try another navpoint
+                // taboo bad navpoint for 3 minutes
+                tabooNavPoints.add(targetNavPoint, 180);
+                break;
+
+            case TARGET_REACHED:
+                // taboo reached navpoint for 3 minutes
+                tabooNavPoints.add(targetNavPoint, 180);
+                break;
+
+            case STUCK:
+            	UT2004PathExecutorStuckState stuck = (UT2004PathExecutorStuckState)event;
+//            	if (stuck.isGlobalTimeout()) {
+//            		say("UT2004PathExecutor GLOBAL TIMEOUT!");
+//            	} else {
+//            		say(stuck.getStuckDetector() + " reported STUCK!");
+//            	}
+//            	if (stuck.getLink() == null) {
+//            		say("STUCK LINK is NOT AVAILABLE!");
+//            	} else {
+//            		say("Bot has stuck while running from " + stuck.getLink().getFromNavPoint().getId() + " -> " + stuck.getLink().getToNavPoint().getId());
+//            	}
+            	
+                // the bot has stuck! ... target nav point is unavailable currently
+                tabooNavPoints.add(targetNavPoint, 60);
+                break;
+
+            case STOPPED:
+                // path execution has stopped
+                targetNavPoint = null;
+                break;
+        }
     }
 
     /**
@@ -209,6 +322,10 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
         itemsToRunAround = null;
         deaths++;
         act.act(new SendMessage().setGlobal(true).setText("Je suis mort " + deaths + " fois"));
+        idleState = true;
+        attackState=false;
+        searchState=false;
+        hurtState=false;
     }
     
     @EventListener(eventClass=PlayerDamaged.class)
@@ -220,6 +337,27 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
     public void botDamaged(BotDamaged event) {
     	log.log(Level.INFO, "I have just been hurt by other bot for: {0}[{1}]", new Object[]{event.getDamageType(), event.getDamage()});
     }
+    
+    /**
+     * Randomly picks some navigation point to head to.
+     *
+     * @return randomly choosed navpoint
+     */
+    protected NavPoint getRandomNavPoint() {
+        body.getCommunication().sendGlobalTextMessage("Picking new target navpoint.");
+
+        // choose one feasible navpoint (== not belonging to tabooNavPoints) randomly
+        NavPoint chosen = MyCollections.getRandomFiltered(getWorldView().getAll(NavPoint.class).values(), tabooNavPoints);
+
+        if (chosen != null) {
+            return chosen;
+        }
+
+        log.warning("All navpoints are tabooized at this moment, choosing navpoint randomly!");
+
+        // ok, all navpoints have been visited probably, try to pick one at random
+        return MyCollections.getRandom(getWorldView().getAll(NavPoint.class).values());
+    }
 
     /**
      * Main method that controls the bot - makes decisions what to do next. It
@@ -230,38 +368,57 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
      *
      */
     @Override
-    public void logic() {    	    	
-        // 1) do you see enemy? 	-> go to PURSUE (start shooting / hunt the enemy)
-        if (shouldEngage && players.canSeeEnemies() && weaponry.hasLoadedWeapon()) {
+    public void logic() {    
+        navigationToUse = navigation;
+        // Parcourt l'ensemble des états pour lancer l'action correspondant à l'état du bot
+        if (idleState){
+            config.setName("idleBot");
+            pacing();
+        }
+        else if (attackState){
+            config.setName("attackBot");
             stateEngage();
-            return;
         }
-
-        // 2) are you shooting? 	-> stop shooting, you've lost your target
-        if (info.isShooting() || info.isSecondaryShooting()) {
-            getAct().act(new StopShooting());
+        else if (searchState){
+            log.info("SEARCH STATE");
         }
-
-        // 3) are you being shot? 	-> go to HIT (turn around - try to find your enemy)
-        if (senses.isBeingDamaged()) {
-            this.stateHit();
-            return;
+        else if (hurtState){
+            
         }
-
-        // 4) have you got enemy to pursue? -> go to the last position of enemy
-        if (enemy != null && shouldPursue && weaponry.hasLoadedWeapon()) {  // !enemy.isVisible() because of 2)
-            this.statePursue();
-            return;
-        }
-
-        // 5) are you hurt?			-> get yourself some medKit
-        if (shouldCollectHealth && info.getHealth() < healthLevel) {
-            this.stateMedKit();
-            return;
-        }
-
-        // 6) if nothing ... run around items
-        stateRunAroundItems();
+        
+        
+        
+//        // 1) do you see enemy? 	-> go to PURSUE (start shooting / hunt the enemy)
+//        if (shouldEngage && players.canSeeEnemies() && weaponry.hasLoadedWeapon()) {
+//            stateEngage();
+//            return;
+//        }
+//
+//        // 2) are you shooting? 	-> stop shooting, you've lost your target
+//        if (info.isShooting() || info.isSecondaryShooting()) {
+//            getAct().act(new StopShooting());
+//        }
+//
+//        // 3) are you being shot? 	-> go to HIT (turn around - try to find your enemy)
+//        if (senses.isBeingDamaged()) {
+//            this.stateHit();
+//            return;
+//        }
+//
+//        // 4) have you got enemy to pursue? -> go to the last position of enemy
+//        if (enemy != null && shouldPursue && weaponry.hasLoadedWeapon()) {  // !enemy.isVisible() because of 2)
+//            this.statePursue();
+//            return;
+//        }
+//
+//        // 5) are you hurt?			-> get yourself some medKit
+//        if (shouldCollectHealth && info.getHealth() < healthLevel) {
+//            this.stateMedKit();
+//            return;
+//        }
+//
+//        // 6) if nothing ... run around items
+//        stateRunAroundItems();
     }
 
     //////////////////
@@ -300,6 +457,8 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
                 getAct().act(new StopShooting());
             }
             runningToPlayer = false;
+            attackState=false;
+            searchState=true;
         } else {
         	// 2) or shoot on enemy if it is visible
 	        distance = info.getLocation().getDistance(enemy.getLocation());
@@ -417,6 +576,50 @@ public class HunterBot extends UT2004BotModuleController<UT2004Bot> {
         	bot.getBotName().setInfo("ITEM: " + itemActuel.getType().getName() + "");
         	navigation.navigate(itemActuel);        	
         }        
+    }
+    
+    ////////////////
+    // BOT PACING //
+    ////////////////
+    private void pacing(){
+        if (navigationToUse.isNavigatingToNavPoint()) {
+            // IS TARGET CLOSE & NEXT TARGET NOT SPECIFIED?
+            while (navigationToUse.getContinueTo() == null && navigationToUse.getRemainingDistance() < 400) {
+                // YES, THERE IS NO "next-target" SET AND WE'RE ABOUT TO REACH OUR TARGET!
+            	NavPoint nextNavPoint = getRandomNavPoint();
+                body.getCommunication().sendGlobalTextMessage("EXTENDING THE PATH: " + NavPoints.describe(nextNavPoint));
+                navigationToUse.setContinueTo(nextNavPoint);
+                // note that it is WHILE because navigation may immediately eat up "next target" and next target may be actually still too close!
+            }
+
+            // WE'RE NAVIGATING TO SOME NAVPOINT
+//            logNavigation();
+            if(players.canSeeEnemies()){
+                idleState=false;
+                attackState=true;
+            }
+            return;
+        }
+        
+        // NAVIGATION HAS STOPPED ... 
+        // => we need to choose another navpoint to navigate to
+        // => possibly follow some players ...
+
+        targetNavPoint = getRandomNavPoint();
+        if (targetNavPoint == null) {
+            log.severe("COULD NOT CHOOSE ANY NAVIGATION POINT TO RUN TO!!!");
+            if (world.getAll(NavPoint.class).isEmpty()) {
+                log.severe("world.getAll(NavPoint.class).size() == 0, there are no navigation ponits to choose from! Is exporting of nav points enabled in GameBots2004.ini inside UT2004?");
+            }
+            config.setName("NavigationBot [CRASHED]");
+            return;
+        }
+
+//        talking = 0;
+//
+//        say("CHOOSING FIRST NAVPOINT TO RUN TO: " + NavPoints.describe(targetNavPoint));
+        navigationToUse.navigate(targetNavPoint);
+//        logNavigation();
     }
 
     ////////////////
