@@ -182,8 +182,6 @@ public class Bot extends UT2004BotModuleController<UT2004Bot> {
     
     /**
      * Here we can modify initializing command for our bot.
-     *
-     * @return
      */
     @Override
     public Initialize getInitializeCommand() {
@@ -205,26 +203,7 @@ public class Bot extends UT2004BotModuleController<UT2004Bot> {
     public void logic() {  
         state.printStatus(this);
         state.logic(this);
-        state.next(this);
-        
-//        // 1) do you see enemy? 	-> go to ATTACK (start shooting / hunt the enemy)
-//        if ((getState().getClass() == IdleState.class || getState().getClass() == SearchState.class) && players.canSeeEnemies() && weaponry.hasLoadedWeapon()) {
-//            setState(new AttackState());
-//            navigation.stopNavigation();
-//            return;
-//        }
-
-//        // 2) are you shooting? 	-> stop shooting, you've lost your target
-//        if (info.isShooting() || info.isSecondaryShooting()) {
-//            getAct().act(new StopShooting());
-//        }
-
-//        // 4) have you got enemy to pursue? -> go to the last position of enemy
-//        if (enemy != null && getState().getClass() == SearchState.class && weaponry.hasLoadedWeapon()) {  // !enemy.isVisible() because of 2)
-//            setState(new SearchState());
-//            return;
-//        }
-        
+        state.next(this);   
     }
 
      /**
@@ -253,7 +232,7 @@ public class Bot extends UT2004BotModuleController<UT2004Bot> {
      * {@link PlayerKilled} listener that provides "frag" counting + is switches
      * the state of the hunter.
      *
-     * @param event
+     * @param event event when the player is killed
      */
     @EventListener(eventClass = PlayerKilled.class)
     public void playerKilled(PlayerKilled event) {
