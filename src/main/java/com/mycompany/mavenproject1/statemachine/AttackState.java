@@ -32,6 +32,10 @@ public class AttackState implements BotState {
             bot.setState(new HurtState());
             bot.getAct().act(new StopShooting());
         }
+        else if (bot.enemy == null){
+            bot.setState(new IdleState());
+            bot.getAct().act(new StopShooting());
+        }
         else if (!bot.enemy.isVisible()){
             bot.setState(new SearchState());
             bot.getAct().act(new StopShooting());
@@ -52,7 +56,7 @@ public class AttackState implements BotState {
            // 1) pick new enemy if the old one has been lost
            if (bot.enemy == null || !bot.enemy.isVisible()) {
                // pick new enemy
-               if(bot.getPlayers().getNearestVisiblePlayer(bot.getPlayers().getVisibleEnemies().values()) !=null){
+               if(bot.getPlayers().getNearestVisiblePlayer(bot.getPlayers().getVisibleEnemies().values()) != null){
                     bot.enemy = bot.getPlayers().getNearestVisiblePlayer(bot.getPlayers().getVisibleEnemies().values());
                }else{
                    return;

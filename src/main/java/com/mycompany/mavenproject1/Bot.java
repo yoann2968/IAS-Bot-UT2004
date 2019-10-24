@@ -187,7 +187,7 @@ public class Bot extends UT2004BotModuleController<UT2004Bot> {
     public Initialize getInitializeCommand() {
         // just set the name of the bot and his skill level, 1 is the lowest, 7 is the highest
     	// skill level affects how well will the bot aim
-        return new Initialize().setName("Terminator-" + (++instanceCount)).setDesiredSkill(1);
+        return new Initialize().setName("Terminator-" + (++instanceCount)).setDesiredSkill(3);
     }
     
     
