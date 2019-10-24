@@ -55,7 +55,7 @@ import java.util.logging.Level;
  * @author yoann
  */
 public class Bot extends UT2004BotModuleController<UT2004Bot> {
-    private BotState state = new IdleState();
+    private BotState state;
     
     private static int instanceCount = 0;
     
@@ -125,6 +125,7 @@ public class Bot extends UT2004BotModuleController<UT2004Bot> {
      */
     @Override
     public void prepareBot(UT2004Bot bot) {
+        state =  new IdleState();
         tabooItems = new TabooSet<Item>(bot);
 
         autoFixer = new UT2004PathAutoFixer(bot, navigation.getPathExecutor(), fwMap, aStar, navBuilder); // auto-removes wrong navigation links between navpoints

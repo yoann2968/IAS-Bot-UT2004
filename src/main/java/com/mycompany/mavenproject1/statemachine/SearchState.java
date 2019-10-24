@@ -19,6 +19,7 @@ package com.mycompany.mavenproject1.statemachine;
 
 import com.mycompany.mavenproject1.Bot;
 import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.SendMessage;
+import cz.cuni.amis.pogamut.ut2004.communication.messages.gbcommands.StopShooting;
 
 /**
  *
@@ -32,6 +33,12 @@ public class SearchState implements BotState {
             bot.setState(new AttackState());
             bot.getNavigation().stopNavigation();
         }
+        if (bot.pursueCount > 30) {
+            bot.setState(new IdleState());
+        }
+        if(bot.enemy == null){
+            bot.setState(new IdleState());
+        }
     }
  
     @Override
@@ -43,14 +50,9 @@ public class SearchState implements BotState {
     @Override
     public void logic(Bot bot) {
         bot.pursueCount++;
-        if (bot.pursueCount > 30) {
-            bot.reset();
-        }
         if (bot.enemy != null) {
         	bot.getNavigation().navigate(bot.enemy);
         	bot.item = null;
-        } else {
-        	bot.reset();
         }
     }
     
