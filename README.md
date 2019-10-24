@@ -29,7 +29,7 @@ public void prepareBot(UT2004Bot bot) {
   ...
 }
 ```
-La méthode logic() permettant de décider des action du bot a ensuite été modifier :
+La méthode logic() permettant de décider des actions du bot a ensuite été modifier :
 ``` java
 @Override
 public void logic() {  
@@ -37,15 +37,4 @@ public void logic() {
   state.logic(this);
   state.next(this);   
 }
-```
-Enfin nous avons ajouté un choix d'arme en fonction de la distance dans la méthode prepareBot :
-``` java
-weaponPrefs.newPrefsRange(80)
-  .add(UT2004ItemType.SHIELD_GUN, true);
-
-weaponPrefs.newPrefsRange(1000)
-  .add(UT2004ItemType.FLAK_CANNON, true)
-  .add(UT2004ItemType.MINIGUN, true)
-  .add(UT2004ItemType.LINK_GUN, false)
-  .add(UT2004ItemType.ASSAULT_RIFLE, true);
 ```
